@@ -1,243 +1,261 @@
 #include <string>
 #include <array>
 #include <iostream>
-#include <set>
 #include <vector>
+#include <algorithm>
+#include <queue>
+#include <map>
+#include <climits>
 
 struct Tile {
-	bool is_void = false;
 	std::array<std::string, 4> structure;
-	int index;
-	bool ship = false;
 
 	Tile() {}
+	Tile(std::array<std::string, 4> structure) : structure(structure) {}
+} tiles[9];
 
-	Tile(std::array<std::string, 4> structure, int index) : structure(structure), index(index) {}
-};
+std::vector<int> get_adj_tiles(int pos) {
+	std::vector<int> adj;
+	if (pos % 3 > 0) adj.push_back(pos-1);
+	if (pos % 3 < 2) adj.push_back(pos+1);
+	if (pos / 3 > 0) adj.push_back(pos-3);
+	if (pos / 3 < 2) adj.push_back(pos+3);
 
-bool check(char base, char overlay, bool final_move = true) {
-	if (base == '_') return true;
-	if (overlay == '_') return true;
-	if (final_move && base == '~') return true;
-	if (final_move && overlay == '~') return true;
-
-	return false;
+	return adj;
 }
 
-char overlay(char base, char overlay, bool final_move = true) {
-	if (base == '_') return overlay;
-	if (overlay == '_') return base;
-	if (final_move && base == '~') return overlay;
-	if (final_move && overlay == '~') return base;
+std::vector<std::array<char, 9>> get_adj_states(std::array<char, 9> state) {
+	std::vector<std::array<char, 9>> states;
 
-	std::cout << "ERROR" << std::endl;
-	return '#';
-}
-
-std::array<std::string, 10> board;
-std::array<Tile, 9> tiles;
-std::set<std::string> visited;
-std::vector<int> traceback;
-
-void clear_board() {
-	for (int i = 0; i < 10; i++) {
-		board[i] = std::string(8, '_');
+	int pos = std::find(state.begin(), state.end(), '0') - state.begin();
+	std::vector<int> adj_tiles = get_adj_tiles(pos);
+	for (int adj : adj_tiles) {
+		std::array<char, 9> adj_state = state;
+		std::swap(adj_state[pos], adj_state[adj]);
+		states.push_back(adj_state);
 	}
+
+	return states;
 }
 
-void draw_board(int ignore = -1) {
-	std::cout << "draw_board(ignore = " << ignore << ")" << std::endl;
-	clear_board();
-	for (int i = 0; i < 9; i++) {
-		if (i == ignore) continue;
-		Tile tile = tiles[i];
-		int offset_x = (i % 3) * 2;
-		int offset_y = (i / 3) * 2;
-		for (int rel_x = 0; rel_x < 4; rel_x++) {
-			int x = offset_x + rel_x;
-			for (int rel_y = 0; rel_y < 4; rel_y++) {
-				int y = offset_y + rel_y;
-				if (!check(board[y][x], tile.structure[rel_y][rel_x])) {
-					std::cout << "Error: Invalid state! [" << x << ", " << y << "]{" << board[y][x] << ", " << tile.structure[rel_y][rel_x] << "}" << std::endl;
-				}
-				board[y][x] = overlay(board[y][x], tile.structure[rel_y][rel_x]);
+bool add_tile_to_board(std::array<std::array<char, 8>, 8> &board, const Tile &tile, int tile_x, int tile_y,
+                       bool moving = false) {
+	for (int i = 0; i < 16; i++) {
+		int rel_x = i % 4;
+		int rel_y = i / 4;
+
+		int x = tile_x + rel_x;
+		int y = tile_y + rel_y;
+
+		if (x >= 8 || y >= 8) continue;
+
+		if (board[y][x] == '*' || (moving && board[y][x] == '@')) {
+			if (tile.structure[rel_y][rel_x] == '*' || (moving && tile.structure[rel_y][rel_x] == '@')) {
+				return false;
 			}
 		}
-	}
-}
 
-std::string state_string() {
-	std::string str = "";
-	for (int i = 0; i < 9; i++) {
-		str += '0' + tiles[i].index;
-	}
-
-	return str;
-}
-
-bool check_move(int tile_i, int dest_i, int dx, int dy) {
-	std::cout << "check_move(" << tile_i << " -> " << dest_i << ", dx = " << dx << ", dy = " << dy << ")" << std::endl;
-	if (dest_i != 10 && !tiles[dest_i].is_void) return false;
-
-	Tile tile = tiles[tile_i];
-	if (tile.is_void) return false;
-
-	std::string state = state_string();
-	if (dest_i == 10) {
-		state = "SOLVED";
-	} else {
-		std::swap(state[tile_i], state[dest_i]);
-	}
-	if (visited.find(state) != visited.end()) {
-		return false;
-	}
-
-	for (int i = 0; i <= 2; i++) {
-		draw_board(tile_i);
-		int offset_x = (tile_i % 3) * 2 + (dx * i);
-		int offset_y = (tile_i / 3) * 2 + (dy * i);
-		for (int rel_x = 0; rel_x < 4; rel_x++) {
-			int x = offset_x + rel_x;
-			for (int rel_y = 0; rel_y < 4; rel_y++) {
-				int y = offset_y + rel_y;
-				if (!check(board[y][x], tile.structure[rel_y][rel_x], i != 1)) {
-					return false;
-				}
-			}
+		if (tile.structure[rel_y][rel_x] != '_') {
+			board[y][x] = tile.structure[rel_y][rel_x];
 		}
 	}
 
 	return true;
 }
 
-void move(int tile_i, int dest_i) {
-	std::cout << "move(" << tile_i << " -> " << dest_i << ")" << std::endl;
-	if (!tiles[dest_i].is_void || tiles[tile_i].is_void) {
-		std::cout << "Error: Invalid move!" << std::endl;
-	}
-
-	std::swap(tiles[tile_i], tiles[dest_i]);
-	visited.insert(state_string());
-
-	draw_board();
-
-	for (auto line : board) {
-		std::cout << line << std::endl;
-	}
-}
-
-int find_void() {
-	for (int i = 0; i < 9; i++) {
-		if (tiles[i].is_void) return i;
-	}
-
-	std::cout << "Error: No void tile" << std::endl;
-	return -1;
-}
-
-int find_ship() {
-	for (int i = 0; i < 9; i++) {
-		if (tiles[i].ship) return i;
-	}
-
-	std::cout << "Error: No ship tile" << std::endl;
-	return -1;
-}
-
-bool try_moves() {
-	if (find_ship() == 7 && check_move(7, 10, 0, 1)) {
-		std::cout << "SOLVED" << std::endl;
-		draw_board();
-		for (auto line : board) {
-			std::cout << line << std::endl;
+void print_board(const std::array<std::array<char, 8>, 8> &board) {
+	for (int y = 0; y < 8; y++) {
+		for (int x = 0; x < 8; x++) {
+			std::cout << board[y][x];
 		}
-		return true;
-	}
-
-	int tile_i = find_void();
-
-	int y = tile_i / 3;
-	int x = tile_i % 3;
-	std::cout << "try_moves(x = " << x << ", y = " << y << ")" << std::endl;
-	if (x > 0 && check_move(tile_i-1, tile_i, 1, 0)) {
-		move(tile_i-1, tile_i);
-		traceback.push_back(tile_i);
-		if (try_moves()) {
-			return true;
-		}
-		std::cout << "BACKTRACKING" << std::endl;
-		move(tile_i, tile_i-1);
-		traceback.pop_back();
-	}
-	if (x < 2 && check_move(tile_i+1, tile_i, -1, 0)) {
-		move(tile_i+1, tile_i);
-		traceback.push_back(tile_i);
-		if (try_moves()) {
-			return true;
-		}
-		std::cout << "BACKTRACKING" << std::endl;
-		move(tile_i, tile_i+1);
-		traceback.pop_back();
-	}
-	if (y > 0 && check_move(tile_i-3, tile_i, 0, 1)) {
-		move(tile_i-3, tile_i);
-		traceback.push_back(tile_i);
-		if (try_moves()) {
-			return true;
-		}
-		std::cout << "BACKTRACKING" << std::endl;
-		move(tile_i, tile_i-3);
-		traceback.pop_back();
-	}
-	if (y < 2 && check_move(tile_i+3, tile_i, 0, -1)) {
-		move(tile_i+3, tile_i);
-		traceback.push_back(tile_i);
-		if (try_moves()) {
-			return true;
-		}
-		std::cout << "BACKTRACKING" << std::endl;
-		move(tile_i, tile_i+3);
-		traceback.pop_back();
-	}
-
-	return false;
-}
-
-int main() {
-	for (int i = 0; i < 9; i++) {
-		std::array<std::string, 4> structure;
-		bool ship = false;
-		for (int i = 0; i < 4; i++) {
-			std::cin >> structure[i];
-			if (structure[i] == "ship") {
-				i--;
-				ship = true;
-			}
-		}
-		tiles[i] = Tile(structure, i);
-		if (structure[0] == "____" && structure[1] == "____" && structure[2] == "____" && structure[3] == "____") {
-			tiles[i].is_void = true;
-		}
-		if (ship) {
-			tiles[i].ship = true;
-		}
-
-		std::cout << "Tile: " << tiles[i].is_void << std::endl;
-		for (auto line : tiles[i].structure) {
-			std::cout << line << std::endl;
-		}
-	}
-
-	draw_board();
-
-	try_moves();
-
-	draw_board();
-
-	std::cout << visited.size() << std::endl;
-
-	for (auto e : traceback) {
-		std::cout << e << " -> ";
+		std::cout << std::endl;
 	}
 	std::cout << std::endl;
+}
+
+bool get_board(std::array<std::array<char, 8>, 8> &board, std::array<char, 9> state) {
+	for (int y = 0; y < 8; y++) {
+		for (int x = 0; x < 8; x++) {
+			board[y][x] = '_';
+		}
+	}
+
+	for (int i = 0; i < 9; i++) {
+		char tile_index = state[i];
+		Tile tile = tiles[tile_index - '0'];
+
+		int tile_x = (i % 3) * 2;
+		int tile_y = (i / 3) * 2;
+
+		if (!add_tile_to_board(board, tile, tile_x, tile_y)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+std::pair<int, int> get_dir(int from_pos, int to_pos) {
+	int x = from_pos % 3;
+	int y = from_pos / 3;
+
+	if (to_pos == from_pos+1 && x < 2) return std::make_pair(1, 0);
+	if (to_pos == from_pos-1 && x > 0) return std::make_pair(-1, 0);
+	if (to_pos == from_pos+3 && y < 2) return std::make_pair(0, 1);
+	if (to_pos == from_pos-3 && y > 0) return std::make_pair(0, -1);
+
+	return std::make_pair(0, 0);
+}
+
+bool valid_move(std::array<char, 9> from, std::array<char, 9> to) {
+	int from_pos = std::find(to.begin(), to.end(), '0') - to.begin();
+	int to_pos = std::find(from.begin(), from.end(), '0') - from.begin();
+
+	std::array<char, 9> empty_state = from;
+	empty_state[from_pos] = '0';
+
+	auto [dx, dy] = get_dir(from_pos, to_pos);
+
+	if (dx == 0 && dy == 0) return false;
+
+	int x = (from_pos % 3) * 2;
+	int y = (from_pos / 3) * 2;
+
+	char tile_index = from[from_pos];
+	Tile tile = tiles[tile_index - '0'];
+	for (int i = 0; i <= 2; i++) {
+		std::array<std::array<char, 8>, 8> board;
+		if (!get_board(board, empty_state) || !add_tile_to_board(board, tile, x + dx*i, y + dy*i)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool is_solve_state(std::array<char, 9> state) {
+	if (state[7] != '8') return false;
+
+	std::array<std::array<char, 8>, 8> board;
+	get_board(board, state);
+
+	std::vector<std::pair<int, int>> exit_path = {
+		{6, 2},                 {6, 5},
+		{7, 2}, {7, 3}, {7, 4}, {7, 5},
+	};
+
+	for (const auto [y, x] : exit_path) {
+		if (board[y][x] != '_') return false;
+	}
+
+	return true;
+}
+
+struct StateDistance {
+	std::array<char, 9> state;
+	int dst;
+
+	StateDistance(std::array<char, 9> state, int dst) : state(state), dst(dst) {}
+};
+
+int main() {
+	tiles[0] = Tile({
+		"____",
+		"____",
+		"____",
+		"____",
+	});
+
+	tiles[8] = Tile({
+		"____",
+		"****",
+		"_@@_",
+		"____",
+	});
+
+	for (int i = 1; i <= 7; i++) {
+		std::array<std::string, 4> structure;
+		for (int j = 0; j < 4; j++) {
+			std::cin >> structure[j];
+		}
+		tiles[i] = Tile(structure);
+	}
+
+	std::array<char, 9> state;
+	for (int i = 0; i < 9; i++) {
+		std::cin >> state[i];
+	}
+
+	StateDistance solve_state = {{'0', '0', '0', '0', '0', '0', '0', '0', '0'}, INT_MAX};
+
+	std::map<std::array<char, 9>, int> dst;
+	std::map<std::array<char, 9>, std::array<char, 9>> prev;
+
+	std::queue<StateDistance> queue;
+	queue.emplace(state, 0);
+	dst[state] = 0;
+	while (!queue.empty()) {
+		StateDistance state = queue.front(); queue.pop();
+		auto adj_states = get_adj_states(state.state);
+		for (const auto &adj : adj_states) {
+			auto it = dst.find(adj);
+			if (it != dst.end() && it->second <= state.dst+1) continue;
+
+			if (valid_move(state.state, adj)) {
+				queue.emplace(adj, state.dst+1);
+				dst[adj] = state.dst+1;
+				prev[adj] = state.state;
+
+				if (state.dst+1 < solve_state.dst && is_solve_state(adj)) {
+					solve_state.state = adj;
+					solve_state.dst = state.dst+1;
+				}
+			}
+		}
+	}
+
+	std::vector<std::array<char, 9>> path;
+	std::array<char, 9> curr_state = solve_state.state;
+	while (curr_state != state) {
+		path.push_back(curr_state);
+		curr_state = prev[curr_state];
+	}
+
+	std::reverse(path.begin(), path.end());
+
+	for (int i = 0; i < path.size(); i++) {
+		std::array<char, 9> state = path[i];
+		std::array<char, 9> prev_state = prev[state];
+		int from_pos = std::find(state.begin(), state.end(), '0') - state.begin();
+		int to_pos = std::find(prev_state.begin(), prev_state.end(), '0') - prev_state.begin();
+
+		std::array<std::array<char, 10>, 3> disp;
+		for (auto &line : disp) {
+			std::fill_n(line.begin(), 10, ' ');
+		}
+
+		for (int i = 0; i < 9; i++) {
+			int x = i % 3;
+			int y = i / 3;
+
+			disp[y][x] = state[i] == '0' ? '@' : '.';
+			disp[y][x + 7] = prev_state[i] == '0' ? '@' : '.';
+		}
+
+		disp[1][4] = '-';
+		disp[1][5] = '>';
+
+		std::cout << i+1 << ':' << std::endl;
+		for (const auto &line : disp) {
+			for (char c : line) std::cout << c;
+			std::cout << std::endl;
+		}
+		std::cout << std::endl;
+	}
+
+	std::cout << path.size()+1 << ':' << std::endl;
+	std::cout << "...    ..." << std::endl;
+	std::cout << "... -> ..." << std::endl;
+	std::cout << ".@.    ..." << std::endl;
+	std::cout << "        @ " << std::endl;
 }
