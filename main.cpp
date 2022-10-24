@@ -125,7 +125,7 @@ bool valid_move(std::array<char, 9> from, std::array<char, 9> to) {
 	Tile tile = tiles[tile_index - '0'];
 	for (int i = 0; i <= 2; i++) {
 		std::array<std::array<char, 8>, 8> board;
-		if (!get_board(board, empty_state) || !add_tile_to_board(board, tile, x + dx*i, y + dy*i)) {
+		if (!get_board(board, empty_state) || !add_tile_to_board(board, tile, x + dx*i, y + dy*i, i == 1)) {
 			return false;
 		}
 	}
@@ -212,6 +212,11 @@ int main() {
 				}
 			}
 		}
+	}
+
+	if (solve_state.dst == INT_MAX) {
+		std::cout << "No solution found." << std::endl;
+		return 1;
 	}
 
 	std::vector<std::array<char, 9>> path;
