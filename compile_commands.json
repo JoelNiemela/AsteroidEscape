@@ -1,0 +1,14 @@
+[
+  {
+    "arguments": [
+      "/sbin/g++",
+      "-c",
+      "-o",
+      "main",
+      "main.cpp"
+    ],
+    "directory": "/home/mocqoro/Programming/Problems/Asteroid",
+    "file": "/home/mocqoro/Programming/Problems/Asteroid/main.cpp",
+    "output": "/home/mocqoro/Programming/Problems/Asteroid/main"
+  }
+]
